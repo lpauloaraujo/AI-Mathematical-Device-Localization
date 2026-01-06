@@ -1,0 +1,32 @@
+{
+    "bs1":{
+        "identifier": 0,
+        "x": 0,
+        "y": 0,
+        "height": 30,
+        "frequency": 900,
+        "power": 43,
+        "gain": 15
+    },
+
+    "bs2":{
+        "identifier": 1,
+        "x": 100,
+        "y": 0,
+        "height": 30,
+        "frequency": 900,
+        "power": 43,
+        "gain": 15
+    },
+    
+    "bs3":{
+        "identifier": 2,
+        "x": 50,
+        "y": 80,
+        "height": 30,
+        "frequency": 900,
+        "power": 43,
+        "gain": 15
+    }
+}
+
