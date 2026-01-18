@@ -1,12 +1,12 @@
-from pos_info.trilateration.geometry import trilateration
+from trilateration.geometry import trilateration
 import heapq
 import json
 import socket
-from device_info.domain.base_station import BaseStation
-from pos_info.models.okomura_hata import OkomuraHata
+from domain.base_station import BaseStation
+from models.okomura_hata import OkomuraHata
 
 class User:
-    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, n_bs=3, bs_list=[None] * 3):
+    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, n_bs=3, bs_list=[]):
         self.x = x
         self.y = y
         self.height = height
@@ -79,7 +79,9 @@ class User:
             server.bind((host, port))
             server.listen()
 
-            print("[USER] Server ready.")
+            print()
+            print("[USER] Server ready for receiving base station signals.")
+            print()
             ready_event.set()
 
             received_count = 0
@@ -99,3 +101,43 @@ class User:
                             gain=bs_data["gain"]
                         )
                     received_count += 1
+            print()
+    
+    def recvall(self, sock, n):
+        data = b''
+        while len(data) < n:
+            packet = sock.recv(n - len(data))
+            if packet == b'':
+                return None
+            if packet is None:
+                return None
+            data += packet
+        return data
+
+    def start(self, host, port):
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((host, port))
+
+            payload = json.dumps(self.to_dict()).encode("utf-8")
+            size = len(payload)
+
+            s.sendall(size.to_bytes(4, "big"))
+            s.sendall(payload)
+
+            size_data = self.recvall(s, 4)
+            if size_data is None:
+                raise RuntimeError("Server closed the connection without sending a response.")
+
+            size = int.from_bytes(size_data, "big")
+
+            data = self.recvall(s, size)
+            if data is None:
+                raise RuntimeError("Server closed the connection before sending all data.")
+
+            self.rp_list = json.loads(data)
+            self.connect()
+            print("[USER] Connected Base Station: ", self.connected_bs.identifier)
+            print("[USER] Connected Base Station's neighbours: ", [bs.identifier for bs in self.connected_bs.get_neighbours(self.bs_list)])
+            self.x, self.y = self.get_position()
+        print(f"[USER] User's Updated Position: {self.x, self.y}")

@@ -1,6 +1,6 @@
 import json
-from device_info.domain.base_station import BaseStation
-from device_info.domain.user import User
+from domain.base_station import BaseStation
+from domain.user import User
 
 def jsonmap(object, path):
     if object.lower() == "bs":

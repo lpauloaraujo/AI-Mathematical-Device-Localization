@@ -1,5 +1,5 @@
 import math
-from pos_info.models.model import Model
+from models.model import Model
 
 class OkomuraHata(Model):
 
@@ -31,7 +31,6 @@ class OkomuraHata(Model):
 
     @staticmethod
     def received_power(base_station, mobile_device, is_bigcity, input_distance=None):
-        print("bs: ", base_station)
         if input_distance is None:
             distance = math.hypot(
                 base_station.x - mobile_device.x, 

@@ -1,62 +1,76 @@
 from utils.jsonmap import jsonmap
-
-bs_list = jsonmap("bs", "data/bs.json")
-user = jsonmap("user", "data/mobile.json")
-
+from rp_server import ReceivedPowerServer
+from models.okomura_hata import OkomuraHata
 import threading
-import time
 
-host = "localhost"
-port = 9090
 
-ready = threading.Event()
+HOST = "localhost"
+PORT = 9090
 
-user_thread = threading.Thread(
+
+def build_user_from_bs_signals():
+    bs_list = jsonmap("bs", "data/bs.json")
+    user = jsonmap("user", "data/mobile.json")
+
+    ready = threading.Event()
+
+    user_thread = threading.Thread(
         target=user.receive_signal,
-        args=(host, port, ready, 3),
+        args=(HOST, PORT, ready, 3),
         daemon=True
     )
+    user_thread.start()
 
-user_thread.start()
+    # Aguarda o user estar pronto para receber
+    ready.wait()
 
-ready.wait()
+    threads = []
+    for bs in bs_list:
+        t = threading.Thread(
+            target=bs.send_signal,
+            args=(HOST, PORT)
+        )
+        t.start()
+        threads.append(t)
 
-time.sleep(0.1)
-
-threads = []
-for bs in bs_list:
-    t = threading.Thread(
-        target=bs.send_signal,
-        args=(host, port)
-    )
-    t.start()
-    threads.append(t)
-
-for t in threads:
+    for t in threads:
         t.join()
 
-time.sleep(0.5)
+    user_thread.join()
 
-user_thread.join(timeout=1)
+    return user
 
-from device_info.device_main import Device
-from pos_info.server_main import ReceivedPowerServer
-from pos_info.models.okomura_hata import OkomuraHata
-import threading
 
-model = OkomuraHata()
+def estimate_user_position(user, model):
+    user.model = model
 
-HOST = '127.0.0.2'
-PORT = 65470
+    rp_server = ReceivedPowerServer(model)
 
-device = Device(host, 65470, user, model)
-rp_server = ReceivedPowerServer(host, 65470, model)
+    rp_server_ready = threading.Event()
 
-rp_server_ready = threading.Event()
+    rp_server_thread = threading.Thread(
+        target=rp_server.start,
+        args=(HOST, PORT, rp_server_ready)
+    )
 
-rp_server_thread = threading.Thread(target=rp_server.start, args=(rp_server_ready,))
-device_thread = threading.Thread(target=device.start)
+    device_thread = threading.Thread(
+        target=user.start,
+        args=(HOST, PORT)
+    )
 
-rp_server_thread.start()
-rp_server_ready.wait()
-device_thread.start()
+    rp_server_thread.start()
+    rp_server_ready.wait()
+    device_thread.start()
+
+    rp_server_thread.join()
+    device_thread.join()
+
+
+def main():
+    model = OkomuraHata()
+    user = build_user_from_bs_signals()
+    estimate_user_position(user, model)
+
+
+if __name__ == "__main__":
+    main()
