@@ -58,17 +58,17 @@ class ReceivedPowerServer:
                         gain=user_data["gain"]
                     )
 
-                    user.bs_list = [
-                        BaseStation.from_dict(bs_data)
-                        for bs_data in user_data["bs_list"]
-                    ]
+                    user.bs_dict = {
+                        bs_data["identifier"]: BaseStation.from_dict(bs_data)
+                        for bs_data in user_data["bs_dict"].values()
+                    }
 
-                    rp_list = [
-                        self.model.received_power(bs, user, True)
-                        for bs in user.bs_list
-                    ]
+                    rp_dict = {
+                        bs.identifier: self.model.received_power(bs, user, True)
+                        for bs in user.bs_dict.values()
+                    }
 
-                    response = json.dumps(rp_list).encode("utf-8")
+                    response = json.dumps(rp_dict).encode("utf-8")
                     conn.sendall(len(response).to_bytes(4, "big"))
                     conn.sendall(response)
 

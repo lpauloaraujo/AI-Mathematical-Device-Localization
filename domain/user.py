@@ -6,15 +6,15 @@ from domain.base_station import BaseStation
 from models.okomura_hata import OkomuraHata
 
 class User:
-    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, n_bs=3, bs_list=[]):
+    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, bs_dict={}):
         self.x = x
         self.y = y
         self.height = height
         self.gain = gain
         self.model = model
-        self.bs_list = [None] * n_bs
-        self.pl_list = [None] * n_bs
-        self.rp_list = [None] * n_bs
+        self.bs_dict = bs_dict
+        self.pl_dict = {}
+        self.rp_dict = {}
         self.connected_bs = None
 
     def to_dict(self):
@@ -23,9 +23,9 @@ class User:
             "y": self.y,
             "height": self.height,
             "gain": self.gain,
-            "bs_list": [bs.to_dict() for bs in self.bs_list],
-            "pl_list": self.pl_list,
-            "rp_list": self.rp_list
+            "bs_dict": {k: v.to_dict() for k, v in self.bs_dict.items()},
+            "pl_dict": self.pl_dict,
+            "rp_dict": self.rp_dict
         }
     
     def from_dict(data):
@@ -34,7 +34,7 @@ class User:
             y=data.get("y"),
             height=data["height"],
             gain=data["gain"],
-            bs_list=[BaseStation.from_dict(bs_data) for bs_data in data.get("bs_list", [])]
+            bs_dict={k: BaseStation.from_dict(bs_data) for k, bs_data in data.get("bs_dict", {}).items()}
         )
 
     def get_position(self):
@@ -45,15 +45,15 @@ class User:
     
     def connect(self):
         if self.connected_bs is None:
-            strongest_received_power_bs = self.rp_list.index(max(self.rp_list))
-            self.connected_bs = self.bs_list[strongest_received_power_bs]
+            strongest_received_power_bs = max(self.rp_dict, key=self.rp_dict.get)
+            self.connected_bs = self.bs_dict[strongest_received_power_bs]
         else:
             if len(self.connected_bs.neigh_bs) == 0:
-                self.connected_bs.neigh_bs.find_neighbours(self.bs_list)
+                self.connected_bs.neigh_bs.find_neighbours(self.bs_dict)
             best_bs = None
             best_bs_rp = float('-inf')
-            for bs in self.connected_bs.neigh_bs.get_neighbours(self.bs_list):
-                rp = self.rp_list[bs.identifier]
+            for bs in self.connected_bs.neigh_bs.get_neighbours(self.bs_dict):
+                rp = self.rp_dict[bs.identifier]
                 if rp > best_bs_rp:
                     best_bs = bs
                     best_bs_rp = rp
@@ -62,7 +62,7 @@ class User:
     def nearest_base_stations(self, quantity, model):
         radii_with_bs = [
             (model.distance(bs, self, True), bs)
-            for bs in self.bs_list
+            for bs in self.bs_dict.values()
         ]
         
         smallest = heapq.nsmallest(quantity, radii_with_bs, key=lambda x: x[0])
@@ -70,8 +70,8 @@ class User:
         return [bs for _, bs in smallest]
             
     def get_radii(self, model):
-        for i in range(len(self.bs_list)):
-            self.bs_list[i].distance = model.distance(self.bs_list[i], self, True)
+        for bs in self.bs_dict.values():
+            bs.distance = model.distance(bs, self, True)
 
     def receive_signal(self, host, port, ready_event, max_bs):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -91,7 +91,7 @@ class User:
                     data = conn.recv(4096)
                     bs_data = json.loads(data.decode("utf-8"))
                     print("[USER] Received Signal:", bs_data)
-                    self.bs_list[int(bs_data["identifier"])] = BaseStation(
+                    self.bs_dict[(bs_data["identifier"])] = BaseStation(
                             identifier=bs_data["identifier"],
                             x=bs_data["x"],
                             y=bs_data["y"],
@@ -101,7 +101,7 @@ class User:
                             gain=bs_data["gain"]
                         )
                     received_count += 1
-            print()
+            print(self.bs_dict)
     
     def recvall(self, sock, n):
         data = b''
@@ -135,9 +135,9 @@ class User:
             if data is None:
                 raise RuntimeError("Server closed the connection before sending all data.")
 
-            self.rp_list = json.loads(data)
+            self.rp_dict = json.loads(data)
             self.connect()
             print("[USER] Connected Base Station: ", self.connected_bs.identifier)
-            print("[USER] Connected Base Station's neighbours: ", [bs.identifier for bs in self.connected_bs.get_neighbours(self.bs_list)])
+            print("[USER] Connected Base Station's neighbours: ", [bs.identifier for bs in self.connected_bs.get_neighbours(self.bs_dict)])
             self.x, self.y = self.get_position()
         print(f"[USER] User's Updated Position: {self.x, self.y}")

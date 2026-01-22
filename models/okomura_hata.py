@@ -38,7 +38,7 @@ class OkomuraHata(Model):
         else:
             distance = input_distance
         path_loss = OkomuraHata.path_loss(base_station, mobile_device, is_bigcity, distance)
-        mobile_device.pl_list[base_station.identifier] = path_loss
+        mobile_device.pl_dict[str(base_station.identifier)] = path_loss
         received_power = Model.generic_received_power(base_station, mobile_device)
         return received_power   
     
@@ -51,20 +51,20 @@ class OkomuraHata(Model):
         distance = 10 ** log_distance
         return distance
     
-    def path_loss_list_by_position( md):
-        pl_list = [None] * 3
-        for index, bs in enumerate(md.bs_list):
+    def path_loss_dict_by_position(md):
+        pl_dict = {}
+        for bs in md.bs_list:
             distance = math.hypot(bs.x - md.x, bs.y - md.y)
-            pl_list[index] = OkomuraHata.path_loss(base_station=bs, mobile_device=md, is_bigcity=True, input_distance=distance)
-        md.pl_list = pl_list
-        return pl_list
-     
-    def received_power_list_by_position(md):
-        if len(md.pl_list) < len(md.bs_list):
-            OkomuraHata.path_loss_list_by_position(md)
-        rp_list = [None] * 3
-        for index, bs in enumerate(md.bs_list):
-            rp_list[index] = Model.generic_received_power(bs, md)
-        md.rp_list = rp_list
-        return rp_list
+            pl_dict[str(bs.identifier)] = OkomuraHata.path_loss(base_station=bs, mobile_device=md, is_bigcity=True, input_distance=distance)
+        md.pl_dict = pl_dict
+        return pl_dict
+
+    def received_power_dict_by_position(md):
+        if len(md.pl_dict) < len(md.bs_list):
+            OkomuraHata.path_loss_dict_by_position(md)
+        rp_dict = {}
+        for bs in md.bs_list:
+            rp_dict[bs.identifier] = Model.generic_received_power(bs, md)
+        md.rp_dict = rp_dict
+        return rp_dict
         

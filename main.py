@@ -3,10 +3,8 @@ from rp_server import ReceivedPowerServer
 from models.okomura_hata import OkomuraHata
 import threading
 
-
 HOST = "localhost"
 PORT = 9090
-
 
 def build_user_from_bs_signals():
     bs_list = jsonmap("bs", "data/bs.json")
@@ -21,7 +19,6 @@ def build_user_from_bs_signals():
     )
     user_thread.start()
 
-    # Aguarda o user estar pronto para receber
     ready.wait()
 
     threads = []

@@ -37,15 +37,15 @@ class BaseStation:
             gain=data["gain"]
         )
 
-    def find_neighbours(self, bs_list):
-        for possible_neighbour in bs_list:
+    def find_neighbours(self, bs_dict):
+        for possible_neighbour in bs_dict.values():
             distance = math.sqrt((possible_neighbour.x - self.x)**2 + (possible_neighbour.y - self.y)**2)
             if distance < 5000:
                 self.neigh_bs.append(possible_neighbour)
 
-    def get_neighbours(self, bs_list):
+    def get_neighbours(self, bs_dict):
         if len(self.neigh_bs) == 0:
-            self.find_neighbours(bs_list)
+            self.find_neighbours(bs_dict)
         return self.neigh_bs
     
     def send_signal(self, host, port):
