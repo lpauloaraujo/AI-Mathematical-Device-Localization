@@ -1,5 +1,6 @@
 import socket
 import json
+import random
 from domain.user import User
 from domain.base_station import BaseStation
 
@@ -26,27 +27,18 @@ class ReceivedPowerServer:
             if ready_event:
                 ready_event.set()
 
-            print("[RP_SERVER] Received Power Server waiting for connections...")
-            print()
-
             conn, addr = s.accept()
             with conn:
-                print(f"[RP_SERVER] Connected by {addr}")
-                print()
 
                 while True:
                     size_data = self.recvall(conn, 4)
                     if size_data is None:
-                        print("[RP_SERVER] Connection closed by the client.")
-                        print()
                         break
 
                     size = int.from_bytes(size_data, "big")
 
                     data = self.recvall(conn, size)
                     if data is None:
-                        print("[RP_SERVER] Client disconnected during transmission.")
-                        print()
                         break
 
                     user_data = json.loads(data.decode("utf-8"))
@@ -64,13 +56,11 @@ class ReceivedPowerServer:
                     }
 
                     rp_dict = {
-                        bs.identifier: self.model.received_power(bs, user, True)
+                        bs.identifier: self.model.received_power(bs, user, True) + random.gauss(0, 6)
                         for bs in user.bs_dict.values()
                     }
+
 
                     response = json.dumps(rp_dict).encode("utf-8")
                     conn.sendall(len(response).to_bytes(4, "big"))
                     conn.sendall(response)
-
-                print("[RP_SERVER] Received Power Server terminated.")
-                print()

@@ -6,7 +6,7 @@ from domain.base_station import BaseStation
 from models.okomura_hata import OkomuraHata
 
 class User:
-    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, bs_dict={}):
+    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, bs_dict={}, pl_dict={}, rp_dict={}):
         self.x = x
         self.y = y
         self.height = height
@@ -16,6 +16,7 @@ class User:
         self.pl_dict = {}
         self.rp_dict = {}
         self.connected_bs = None
+        self.fallback = False
 
     def to_dict(self):
         return {
@@ -39,9 +40,9 @@ class User:
 
     def get_position(self):
         self.get_radii(self.model)
-        nbs = self.nearest_base_stations(3, self.model)
-        new_x, new_y = trilateration(nbs)
-        return (new_x, new_y)
+        nbs, altbs = self.nearest_base_stations(3, self.model)
+        result = trilateration(nbs, altbs) 
+        return result
     
     def connect(self):
         if self.connected_bs is None:
@@ -64,10 +65,10 @@ class User:
             (model.distance(bs, self, True), bs)
             for bs in self.bs_dict.values()
         ]
-        
         smallest = heapq.nsmallest(quantity, radii_with_bs, key=lambda x: x[0])
-        
-        return [bs for _, bs in smallest]
+        nbs = [bs for _, bs in smallest]
+        altbs = [bs for bs in self.bs_dict.values() if bs not in nbs]
+        return nbs, altbs
             
     def get_radii(self, model):
         for bs in self.bs_dict.values():
@@ -78,10 +79,6 @@ class User:
             server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server.bind((host, port))
             server.listen()
-
-            print()
-            print("[USER] Server ready for receiving base station signals.")
-            print()
             ready_event.set()
 
             received_count = 0
@@ -90,7 +87,6 @@ class User:
                 with conn:
                     data = conn.recv(4096)
                     bs_data = json.loads(data.decode("utf-8"))
-                    print("[USER] Received Signal:", bs_data)
                     self.bs_dict[(bs_data["identifier"])] = BaseStation(
                             identifier=bs_data["identifier"],
                             x=bs_data["x"],
@@ -101,7 +97,6 @@ class User:
                             gain=bs_data["gain"]
                         )
                     received_count += 1
-            print(self.bs_dict)
     
     def recvall(self, sock, n):
         data = b''
@@ -137,7 +132,5 @@ class User:
 
             self.rp_dict = json.loads(data)
             self.connect()
-            print("[USER] Connected Base Station: ", self.connected_bs.identifier)
-            print("[USER] Connected Base Station's neighbours: ", [bs.identifier for bs in self.connected_bs.get_neighbours(self.bs_dict)])
-            self.x, self.y = self.get_position()
-        print(f"[USER] User's Updated Position: {self.x, self.y}")
+            self.x, self.y, self.fallback = self.get_position()
+            return self.x, self.y, self.fallback

@@ -1,5 +1,7 @@
 import math
+import random
 from models.model import Model
+from trilateration.geometry import distance_km
 
 class OkomuraHata(Model):
 
@@ -17,9 +19,7 @@ class OkomuraHata(Model):
 
     def path_loss(base_station, mobile_device, is_bigcity, input_distance=None):
         if input_distance == None:
-            distance = math.hypot(
-                base_station.x - mobile_device.x, 
-                base_station.y - mobile_device.y)
+            distance = distance_km(base_station, mobile_device)
         else:
             distance = input_distance
         correction_factor = OkomuraHata.correction_factor(mobile_device.height, base_station.frequency, is_bigcity)
@@ -32,9 +32,7 @@ class OkomuraHata(Model):
     @staticmethod
     def received_power(base_station, mobile_device, is_bigcity, input_distance=None):
         if input_distance is None:
-            distance = math.hypot(
-                base_station.x - mobile_device.x, 
-                base_station.y - mobile_device.y)
+            distance = distance_km(base_station, mobile_device)
         else:
             distance = input_distance
         path_loss = OkomuraHata.path_loss(base_station, mobile_device, is_bigcity, distance)
@@ -54,7 +52,7 @@ class OkomuraHata(Model):
     def path_loss_dict_by_position(md):
         pl_dict = {}
         for bs in md.bs_list:
-            distance = math.hypot(bs.x - md.x, bs.y - md.y)
+            distance = distance_km(bs, md)
             pl_dict[str(bs.identifier)] = OkomuraHata.path_loss(base_station=bs, mobile_device=md, is_bigcity=True, input_distance=distance)
         md.pl_dict = pl_dict
         return pl_dict

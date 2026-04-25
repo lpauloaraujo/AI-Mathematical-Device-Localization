@@ -1,0 +1,38 @@
+[
+    {
+        "identifier": "1",
+        "x": -34.90611,
+        "y": -8.05722,
+        "height": 60.0,
+        "frequency": 900,
+        "power": 30,
+        "gain": 16.0
+    },
+    {
+        "identifier": "2",
+        "x": -34.9028,
+        "y": -8.05806,
+        "height": 49.6,
+        "frequency": 900,
+        "power": 30,
+        "gain": 11.8
+    },
+    {
+        "identifier": "3",
+        "x": -34.90472,
+        "y": -8.05806,
+        "height": 28.0,
+        "frequency": 900,
+        "power": 30,
+        "gain": 11.8
+    },
+    {
+        "identifier": "4",
+        "x": -34.9085,
+        "y": -8.0546,
+        "height": 72.2,
+        "frequency": 900,
+        "power": 30,
+        "gain": 17.0
+    }
+]

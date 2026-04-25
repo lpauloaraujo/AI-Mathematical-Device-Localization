@@ -24,7 +24,7 @@ def draw_circles(xs, ys, raios):
     ax.grid(True)
     plt.savefig("circles.png")
 
-xs = [0, 100, 50]
-ys = [0, 0, 80]
-radii = [50, 50, 80]
+xs = [23, 23, 1, 22]
+ys = [17, 41, 15, 17]
+radii = [1, 1, 1, 1]
 draw_circles(xs, ys, radii)

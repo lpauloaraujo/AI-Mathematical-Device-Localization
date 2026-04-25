@@ -36,7 +36,10 @@ class BaseStation:
             power=data["power"],
             gain=data["gain"]
         )
-
+    
+    #geolocalization mobile databases
+    #Procurar artigos ou teses que possuam repositórios públicos de informação para testar o quanto o simulador do projeto chega perto dos restultados reais
+    #função que pega o sinal das 4 melhores
     def find_neighbours(self, bs_dict):
         for possible_neighbour in bs_dict.values():
             distance = math.sqrt((possible_neighbour.x - self.x)**2 + (possible_neighbour.y - self.y)**2)

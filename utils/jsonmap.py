@@ -8,11 +8,11 @@ def jsonmap(object, path):
         with open(path) as f:
             bs_data_list = json.load(f)
 
-        return [BaseStation.from_dict(bs_data) for bs, bs_data in bs_data_list.items()]
+        return [BaseStation.from_dict(bs_data) for bs_data in bs_data_list]
     
     if object.lower() == "user":
         
         with open(path) as f:
             user_data_list = json.load(f)
 
-        return User.from_dict(user_data_list)
+        return [User.from_dict(user_data) for user_data in user_data_list]
