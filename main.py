@@ -40,10 +40,10 @@ def build_user_from_bs_signals(base_stations, user):
     return user
 
 
-def estimate_user_position(user, model):
+def estimate_user_position(user, model, mean, std, times):
     user.model = model
 
-    rp_server = ReceivedPowerServer(model)
+    rp_server = ReceivedPowerServer(model, mean, std, times)
 
     rp_server_ready = threading.Event()
 
@@ -69,9 +69,9 @@ def estimate_user_position(user, model):
     return (user.x, user.y)
 
 
-def get_user_estimate_position(user, base_stations, model):
+def get_user_estimate_position(user, base_stations, model, mean, std, times):
     complete_user = build_user_from_bs_signals(base_stations, user)
-    user_estimate_position = estimate_user_position(complete_user, model)
+    user_estimate_position = estimate_user_position(complete_user, model, mean, std, times)
 
 
     return (user_estimate_position, user.connected_bs if user.connected_bs else None)
@@ -79,7 +79,7 @@ def get_user_estimate_position(user, base_stations, model):
 def format_float(x):
     return f"{x:.10f}" if x is not None else ""
 
-def main():
+def main(mean, std, noise_times):
     model = OkomuraHata()
     base_stations = jsonmap("bs", "data/generated_bs.json")
     users = jsonmap("user", "data/generated_users.json")
@@ -95,7 +95,7 @@ def main():
             "Neighbor 1", "rssi",
             "Neighbor 2", "rssi",
             "lat calc", "long calc",
-            "Erro (%)", "fallback"
+            "Erro (metros)", "fallback"
         ])
 
         for user in users:
@@ -103,47 +103,32 @@ def main():
             real_X, real_Y = user.x, user.y
 
             estimated_position, connected_bs = get_user_estimate_position(
-                user, base_stations, model
+                user, base_stations, model, mean, std, noise_times
             )
 
             est_X, est_Y = estimated_position
 
             sorted_bs = sorted(
-                user.rp_dict.items(),
-                key=lambda x: x[1], 
+                user.trilateration_bs,
+                key=lambda bs: user.rp_dict.get(bs.identifier, 0), 
                 reverse=True
             )
 
-            server_id = connected_bs.identifier if connected_bs else None
-            server_rssi = user.rp_dict[server_id]
-
-            neighbors = [
-                (bs_id, rssi)
-                for bs_id, rssi in sorted_bs
-                if bs_id != server_id
-            ][:3]
-
-            while len(neighbors) < 3:
-                neighbors.append((None, None))
-
-            if est_X is None or est_Y is None:
-                error_percent = None
-            else:
-                error_km = distance_between_points(real_X, real_Y, est_X, est_Y)
-
-                MAX_ERROR_KM = 1  
-                error_percent = (error_km / MAX_ERROR_KM) * 100
+            error_metros = distance_between_points(real_X, real_Y, est_X, est_Y) * 1000
 
             writer.writerow([
                 real_X, real_Y,
-                server_id, server_rssi,
-                neighbors[0][0], format_float(neighbors[0][1]),
-                neighbors[1][0], format_float(neighbors[1][1]),
+                sorted_bs[0].identifier, user.rp_dict.get(sorted_bs[0].identifier, 0),
+                sorted_bs[1].identifier, format_float(user.rp_dict.get(sorted_bs[1].identifier, 0)),
+                sorted_bs[2].identifier, format_float(user.rp_dict.get(sorted_bs[2].identifier, 0)),
                 format_float(est_X), format_float(est_Y),
-                format_float(error_percent), user.fallback
+                error_metros, user.fallback
             ])
 
     print(f"Resultados salvos em {table_path}")
 
 if __name__ == "__main__":
-    main()
+    main(0, 6, 5)  
+
+#fazer tabela mostrando em médio o erro para cada valor de desvio padrão
+#fazer vários testes com diferentes valores de desvio padrão e comparar os resultados 

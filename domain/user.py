@@ -6,7 +6,7 @@ from domain.base_station import BaseStation
 from models.okomura_hata import OkomuraHata
 
 class User:
-    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, bs_dict={}, pl_dict={}, rp_dict={}):
+    def __init__(self, height, gain, model=OkomuraHata(), x=None, y=None, bs_dict={}, pl_dict={}, rp_dict={}, trilateration_bs=[]):
         self.x = x
         self.y = y
         self.height = height
@@ -16,6 +16,7 @@ class User:
         self.pl_dict = {}
         self.rp_dict = {}
         self.connected_bs = None
+        self.trilateration_bs = []
         self.fallback = False
 
     def to_dict(self):
@@ -132,5 +133,5 @@ class User:
 
             self.rp_dict = json.loads(data)
             self.connect()
-            self.x, self.y, self.fallback = self.get_position()
-            return self.x, self.y, self.fallback
+            self.x, self.y, self.fallback, self.trilateration_bs = self.get_position()
+            return self.x, self.y, self.fallback, self.trilateration_bs

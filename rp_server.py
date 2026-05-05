@@ -6,8 +6,11 @@ from domain.base_station import BaseStation
 
 class ReceivedPowerServer:
 
-    def __init__(self, model):  
+    def __init__(self, model, noisemean=0, noisestddev=6, noise_times=1):  
         self.model = model
+        self.noisemean = noisemean
+        self.noisestddev = noisestddev
+        self.noise_times = noise_times
 
     def recvall(self, conn, n):
         data = b''
@@ -17,6 +20,12 @@ class ReceivedPowerServer:
                 return None
             data += packet
         return data
+    
+    def noise(self, mean=0, stddev=6, times=1):
+        total_noise = 0
+        for _ in range(times):
+            total_noise += random.gauss(mean, stddev)
+        return total_noise/times
 
     def start(self, host, port, ready_event=None):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -54,12 +63,11 @@ class ReceivedPowerServer:
                         bs_data["identifier"]: BaseStation.from_dict(bs_data)
                         for bs_data in user_data["bs_dict"].values()
                     }
-
+                    
                     rp_dict = {
-                        bs.identifier: self.model.received_power(bs, user, True) + random.gauss(0, 6)
+                        bs.identifier: self.model.received_power(bs, user, True) + self.noise(self.noisemean, self.noisestddev, self.noise_times)
                         for bs in user.bs_dict.values()
                     }
-
 
                     response = json.dumps(rp_dict).encode("utf-8")
                     conn.sendall(len(response).to_bytes(4, "big"))

@@ -9,7 +9,6 @@ def to_km_coords(bs, ref_lat):
 
     return x, y
 
-#Testar em algum site que converte latitute e longitude em KM
 def km_to_latlon(x, y, ref_lat):
     lat = y / 111
     lon = x / (111 * math.cos(math.radians(ref_lat)))
@@ -102,8 +101,9 @@ def trilateration(bs_list, altbs):
     bs_km = build_km_list(bs_list)
     all_points = get_intersections(bs_km)
     
+    new_bs = bs_list
+
     if not all_points and altbs:
-        print("Fallback: substituindo estações por reservas...")
 
         n = len(bs_list)
 
@@ -115,13 +115,13 @@ def trilateration(bs_list, altbs):
 
                 for replacement in combinations(altbs, k):
 
+                    #retornar isso aqui    
                     new_bs = remaining + list(replacement)
 
                     bs_km_alt = build_km_list(new_bs)
                     all_points = get_intersections(bs_km_alt)
 
                     if all_points:
-                        print(f"Interseção encontrada substituindo {k} estação(ões)")
                         break
 
                 if all_points:
@@ -133,7 +133,7 @@ def trilateration(bs_list, altbs):
         x_avg = sum(p[1] for p in bs_km) / len(bs_km)
         y_avg = sum(p[2] for p in bs_km) / len(bs_km)
         lon, lat = km_to_latlon(x_avg, y_avg, ref_lat)
-        return (lon, lat, True)
+        return (lon, lat, True, new_bs)
 
     counted_points = []
 
@@ -153,4 +153,4 @@ def trilateration(bs_list, altbs):
 
     lon, lat = km_to_latlon(best_point[0], best_point[1], ref_lat)
 
-    return (lon, lat, False)
+    return (lon, lat, False, new_bs)
