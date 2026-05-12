@@ -20,7 +20,7 @@ if __name__ == "__main__":
             'mean': mean,
             'std': std,
             'noise_times': noise_times,
-            'media_erro': media
+            'media_erro (metros)': media
         })
 
     df_resultados = pd.DataFrame(resultados)
