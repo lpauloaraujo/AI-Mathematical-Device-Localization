@@ -1,4 +1,5 @@
 from trilateration.geometry import trilateration
+from trilateration.time_advance import simulate_ta
 import heapq
 import json
 import socket
@@ -40,9 +41,12 @@ class User:
         )
 
     def get_position(self):
+        tascs = []
+        for bs in self.bs_dict.values():
+            tascs.append(simulate_ta(self.x, self.y, bs.x, bs.y, bs.identifier))
         self.get_radii(self.model)
         nbs, altbs = self.nearest_base_stations(3, self.model)
-        result = trilateration(nbs, altbs) 
+        result = trilateration(nbs, altbs, tascs) 
         return result
     
     def connect(self):

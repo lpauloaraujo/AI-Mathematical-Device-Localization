@@ -1,6 +1,9 @@
 import math
 from itertools import combinations
 
+from trilateration.radical_axis import radical_center
+from trilateration.time_advance import calculate_ta_distance
+
 def to_km_coords(bs, ref_lat):
     lat_rad = math.radians(ref_lat)
 
@@ -76,8 +79,25 @@ def two_circles_intersection(x0, y0, r0, x1, y1, r1):
 def close_points(p1, p2, tol=1e-3):  
     return math.isclose(p1[0], p2[0], abs_tol=tol) and math.isclose(p1[1], p2[1], abs_tol=tol)
 
+def get_closest_point_by_ta(points, tascs, bs_list):
+    total_distances = []
+    for point in points:
+        total_distance = 0
+        for tasc in tascs:
+            base_station = None
+            ta_distance = calculate_ta_distance(tasc[0], tasc[1])
+            for bs in bs_list:
+                if bs.identifier == tasc[2]:
+                    base_station = bs
+                    break
+            point_distance = distance_between_points(point[1], point[0], base_station.y, base_station.x)
+            total_distance += abs(ta_distance - point_distance)
+        total_distances.append((total_distance, point))
+    total_distances.sort(key=lambda x: x[0])
+    return total_distances[0][1]
 
-def trilateration(bs_list, altbs):
+
+def trilateration(bs_list, altbs, tascs):
 
     if len(bs_list) < 3:
         return None
@@ -135,22 +155,23 @@ def trilateration(bs_list, altbs):
         lon, lat = km_to_latlon(x_avg, y_avg, ref_lat)
         return (lon, lat, True, new_bs)
 
-    counted_points = []
+#    counted_points = []
 
-    for p in all_points:
-        found = False
+#    for p in all_points:
+#        found = False
 
-        for item in counted_points:
-            if close_points(p, item[0]):
-                item[1] += 1
-                found = True
-                break
+#        for item in counted_points:
+#            if close_points(p, item[0]):
+#               item[1] += 1
+#                found = True
+#                break
 
-        if not found:
-            counted_points.append([p, 1])
+#        if not found:
+#            counted_points.append([p, 1])
 
-    best_point, _ = max(counted_points, key=lambda x: x[1])
+#    best_point, _ = max(counted_points, key=lambda x: x[1])
+    best_point = get_closest_point_by_ta(all_points, tascs, bs_list)
 
     lon, lat = km_to_latlon(best_point[0], best_point[1], ref_lat)
-
+    print(radical_center(bs_list), (lon, lat))
     return (lon, lat, False, new_bs)
