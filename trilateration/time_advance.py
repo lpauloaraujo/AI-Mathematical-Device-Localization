@@ -47,6 +47,7 @@ def simulate_ta(
         lon2
     )
 
+#[distancia1]
     scs = random.choice(possible_scs)
 
     error = random.gauss(0, distance_error_std)

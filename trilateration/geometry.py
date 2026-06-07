@@ -79,7 +79,7 @@ def two_circles_intersection(x0, y0, r0, x1, y1, r1):
 def close_points(p1, p2, tol=1e-3):  
     return math.isclose(p1[0], p2[0], abs_tol=tol) and math.isclose(p1[1], p2[1], abs_tol=tol)
 
-def get_closest_point_by_ta(points, tascs, bs_list):
+def get_closest_point_by_ta(points, tascs, bs_list, altbs):
     total_distances = []
     for point in points:
         total_distance = 0
@@ -89,6 +89,10 @@ def get_closest_point_by_ta(points, tascs, bs_list):
             for bs in bs_list:
                 if bs.identifier == tasc[2]:
                     base_station = bs
+                    break
+            for alt_bs in altbs:
+                if alt_bs.identifier == tasc[2]:
+                    base_station = alt_bs
                     break
             point_distance = distance_between_points(point[1], point[0], base_station.y, base_station.x)
             total_distance += abs(ta_distance - point_distance)
@@ -134,8 +138,7 @@ def trilateration(bs_list, altbs, tascs):
                 remaining = [bs_list[i] for i in range(n) if i not in remove_idx]
 
                 for replacement in combinations(altbs, k):
-
-                    #retornar isso aqui    
+    
                     new_bs = remaining + list(replacement)
 
                     bs_km_alt = build_km_list(new_bs)
@@ -150,11 +153,15 @@ def trilateration(bs_list, altbs, tascs):
                 break
 
     if not all_points:
-        x_avg = sum(p[1] for p in bs_km) / len(bs_km)
-        y_avg = sum(p[2] for p in bs_km) / len(bs_km)
-        lon, lat = km_to_latlon(x_avg, y_avg, ref_lat)
-        return (lon, lat, True, new_bs)
+        rc = radical_center(new_bs)
 
+        if rc is not None:
+            lon, lat = rc
+        else:
+            x_avg = sum(p[1] for p in bs_km) / len(bs_km)
+            y_avg = sum(p[2] for p in bs_km) / len(bs_km)
+            lon, lat = km_to_latlon(x_avg, y_avg, ref_lat)
+        return (lon, lat, True, new_bs)
 #    counted_points = []
 
 #    for p in all_points:
@@ -170,8 +177,7 @@ def trilateration(bs_list, altbs, tascs):
 #            counted_points.append([p, 1])
 
 #    best_point, _ = max(counted_points, key=lambda x: x[1])
-    best_point = get_closest_point_by_ta(all_points, tascs, bs_list)
+    best_point = get_closest_point_by_ta(all_points, tascs, bs_list, altbs)
 
     lon, lat = km_to_latlon(best_point[0], best_point[1], ref_lat)
-    print(radical_center(bs_list), (lon, lat))
     return (lon, lat, False, new_bs)
