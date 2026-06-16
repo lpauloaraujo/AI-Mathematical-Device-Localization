@@ -19,6 +19,9 @@ class User:
         self.connected_bs = None
         self.trilateration_bs = []
         self.fallback = False
+        self.case = None
+        self.trilateration_method = None
+        self.choice_method = None
 
     def to_dict(self):
         return {
@@ -46,7 +49,7 @@ class User:
             tascs.append(simulate_ta(self.x, self.y, bs.x, bs.y, bs.identifier))
         self.get_radii(self.model)
         nbs, altbs = self.nearest_base_stations(3, self.model)
-        result = trilateration(nbs, altbs, tascs) 
+        result = trilateration(nbs, altbs, tascs, self.trilateration_method, self.choice_method) 
         return result
     
     def connect(self):
@@ -137,5 +140,5 @@ class User:
 
             self.rp_dict = json.loads(data)
             self.connect()
-            self.x, self.y, self.fallback, self.trilateration_bs = self.get_position()
-            return self.x, self.y, self.fallback, self.trilateration_bs
+            self.x, self.y, self.fallback, self.trilateration_bs, self.case = self.get_position()
+            return self.x, self.y, self.fallback, self.trilateration_bs, self.case

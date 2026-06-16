@@ -1,8 +1,10 @@
 import math
 from itertools import combinations
+import random
 
 from trilateration.radical_axis import radical_center
 from trilateration.time_advance import calculate_ta_distance
+from trilateration.cases import identify_case
 
 def to_km_coords(bs, ref_lat):
     lat_rad = math.radians(ref_lat)
@@ -100,8 +102,30 @@ def get_closest_point_by_ta(points, tascs, bs_list, altbs):
     total_distances.sort(key=lambda x: x[0])
     return total_distances[0][1]
 
+def get_closest_point_by_quantity(all_points):
+    counted_points = []
 
-def trilateration(bs_list, altbs, tascs):
+    for p in all_points:
+        found = False
+
+        for item in counted_points:
+            if close_points(p, item[0]):
+                item[1] += 1
+                found = True
+                break
+
+        if not found:
+            counted_points.append([p, 1])
+
+    best_point, _ = max(counted_points, key=lambda x: x[1])
+    return best_point
+
+def get_closest_point_by_avg(bs_km, ref_lat):
+    x_avg = sum(p[1] for p in bs_km) / len(bs_km)
+    y_avg = sum(p[2] for p in bs_km) / len(bs_km)
+    return (x_avg, y_avg)
+
+def trilateration(bs_list, altbs, tascs, trilateration_method, choice_method):
 
     if len(bs_list) < 3:
         return None
@@ -123,7 +147,21 @@ def trilateration(bs_list, altbs, tascs):
         return points
     
     bs_km = build_km_list(bs_list)
-    all_points = get_intersections(bs_km)
+
+    internal_spheres = count_containments_bs(bs_list)
+
+    intersection_number = count_intersections(bs_km)
+
+    case_id = identify_case(
+        internal_spheres,
+        intersection_number
+    )
+
+    if trilateration_method == 0:
+        all_points = get_intersections(bs_km)
+    elif trilateration_method == 1:
+        ta_km = build_ta_km_list(bs_list, tascs, ref_lat)
+        all_points = get_intersections(ta_km)
     
     new_bs = bs_list
 
@@ -161,23 +199,72 @@ def trilateration(bs_list, altbs, tascs):
             x_avg = sum(p[1] for p in bs_km) / len(bs_km)
             y_avg = sum(p[2] for p in bs_km) / len(bs_km)
             lon, lat = km_to_latlon(x_avg, y_avg, ref_lat)
-        return (lon, lat, True, new_bs)
-#    counted_points = []
-
-#    for p in all_points:
-#        found = False
-
-#        for item in counted_points:
-#            if close_points(p, item[0]):
-#               item[1] += 1
-#                found = True
-#                break
-
-#        if not found:
-#            counted_points.append([p, 1])
-
-#    best_point, _ = max(counted_points, key=lambda x: x[1])
-    best_point = get_closest_point_by_ta(all_points, tascs, bs_list, altbs)
+        return (lon, lat, True, new_bs, case_id)
+#    
+    if choice_method == 0:
+        best_point = get_closest_point_by_avg(bs_km, ref_lat)
+    elif choice_method == 1:
+        best_point = random.choice(all_points)
+    elif choice_method == 2:
+        lon, lat = radical_center(new_bs)
+        return (lon, lat, False, new_bs, case_id)
+    elif choice_method == 3:
+        best_point = get_closest_point_by_ta(all_points, tascs, bs_list, altbs)
+    elif choice_method == 4:
+        best_point = get_closest_point_by_quantity(all_points)
 
     lon, lat = km_to_latlon(best_point[0], best_point[1], ref_lat)
-    return (lon, lat, False, new_bs)
+    return (lon, lat, False, new_bs, case_id)
+
+def count_intersections(bs_km):
+    intersections = 0
+
+    for (_, x0, y0, r0), (_, x1, y1, r1) in combinations(bs_km, 2):
+        pts = two_circles_intersection(x0, y0, r0, x1, y1, r1)
+        intersections += len(pts)
+
+    return intersections
+
+def count_containments_bs(bs_list):
+    count = 0
+
+    for bs1, bs2 in combinations(bs_list, 2):
+
+        d = distance_between_points(
+            bs1.y, bs1.x,
+            bs2.y, bs2.x
+        )
+
+        if d + bs1.distance <= bs2.distance:
+            count += 1
+
+        elif d + bs2.distance <= bs1.distance:
+            count += 1
+
+    return count
+
+def build_ta_km_list(bs_source, ta_map, ref_lat):
+
+    ta_dict = {
+        identifier: (ta, scs)
+        for ta, scs, identifier in ta_map
+    }
+
+    bs_km_local = []
+
+    for bs in bs_source:
+
+        if bs.identifier not in ta_dict:
+            continue
+
+        x_km, y_km = to_km_coords(bs, ref_lat)
+
+        ta, scs = ta_dict[bs.identifier]
+
+        radius_km = calculate_ta_distance(ta, scs) / 1000
+
+        bs_km_local.append(
+            (bs.identifier, x_km, y_km, radius_km)
+        )
+
+    return bs_km_local
