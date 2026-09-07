@@ -1,38 +1,29 @@
 [
     {
         "identifier": "1",
-        "x": -34.90611,
-        "y": -8.05722,
-        "height": 60.0,
+        "x": 141,
+        "y": 360,
+        "height": 30,
         "frequency": 900,
-        "power": 10,
-        "gain": 16.0
+        "power": 20,
+        "gain": 15
     },
     {
         "identifier": "2",
-        "x": -34.9028,
-        "y": -8.05806,
-        "height": 49.6,
+        "x": 738,
+        "y": 18,
+        "height": 30,
         "frequency": 900,
-        "power": 10,
-        "gain": 11.8
+        "power": 20,
+        "gain": 15
     },
     {
         "identifier": "3",
-        "x": -34.90472,
-        "y": -8.05806,
-        "height": 28.0,
+        "x": 204,
+        "y": 133,
+        "height": 30,
         "frequency": 900,
-        "power": 10,
-        "gain": 11.8
-    },
-    {
-        "identifier": "4",
-        "x": -34.9085,
-        "y": -8.0546,
-        "height": 72.2,
-        "frequency": 900,
-        "power": 10,
-        "gain": 17.0
+        "power": 20,
+        "gain": 15
     }
 ]

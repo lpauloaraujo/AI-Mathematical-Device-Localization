@@ -22,6 +22,14 @@ class OkomuraHata(Model):
             distance = distance_km(base_station, mobile_device)
         else:
             distance = input_distance
+
+        if distance <= 0 or math.isnan(distance):
+            print("ERRO")
+            print("distance:", distance)
+            print(f"BS {base_station.identifier}: ({base_station.x}, {base_station.y})")
+            print(f"USER: ({mobile_device.x}, {mobile_device.y})")
+            raise RuntimeError("Distância inválida")
+
         correction_factor = OkomuraHata.correction_factor(mobile_device.height, base_station.frequency, is_bigcity)
         path_loss = (69.55 + 26.16 * math.log10(base_station.frequency)
             - 13.82 * math.log10(base_station.height)

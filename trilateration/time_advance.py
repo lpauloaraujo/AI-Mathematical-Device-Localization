@@ -36,7 +36,7 @@ def simulate_ta(
     lat2,
     lon2,
     identifier,
-    possible_scs=(15, 30, 60),
+    possible_scs=(15, 30, 60, 120, 240),
     distance_error_std=20
 ):
 

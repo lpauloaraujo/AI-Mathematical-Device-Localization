@@ -7,3 +7,12 @@ venv/
 .env/
 .vscode
 data/*.csv
+
+*.png
+*.json
+*.csv
+*.ipynb_checkpoints
+*.ipynb
+data/
+data/
+

@@ -16,12 +16,12 @@ class User:
         self.bs_dict = bs_dict
         self.pl_dict = {}
         self.rp_dict = {}
+        self.noise_dict = {}
         self.connected_bs = None
         self.trilateration_bs = []
         self.fallback = False
         self.case = None
-        self.trilateration_method = None
-        self.choice_method = None
+        self.solution = None
 
     def to_dict(self):
         return {
@@ -31,25 +31,30 @@ class User:
             "gain": self.gain,
             "bs_dict": {k: v.to_dict() for k, v in self.bs_dict.items()},
             "pl_dict": self.pl_dict,
-            "rp_dict": self.rp_dict
+            "rp_dict": self.rp_dict,
+            "noise_dict": self.noise_dict,
         }
     
     def from_dict(data):
-        return User(
+        user = User(
             x=data.get("x"),
             y=data.get("y"),
             height=data["height"],
             gain=data["gain"],
-            bs_dict={k: BaseStation.from_dict(bs_data) for k, bs_data in data.get("bs_dict", {}).items()}
+            bs_dict={
+                k: BaseStation.from_dict(bs_data)
+                for k, bs_data in data.get("bs_dict", {}).items()
+            }
         )
+        user.noise_dict = data.get("noise_dict", {})
+        return user
 
     def get_position(self):
-        tascs = []
-        for bs in self.bs_dict.values():
-            tascs.append(simulate_ta(self.x, self.y, bs.x, bs.y, bs.identifier))
+
+        tasc = simulate_ta(self.x, self.y, self.connected_bs.x, self.connected_bs.y, self.connected_bs.identifier)
         self.get_radii(self.model)
         nbs, altbs = self.nearest_base_stations(3, self.model)
-        result = trilateration(nbs, altbs, tascs, self.trilateration_method, self.choice_method) 
+        result = trilateration(nbs, altbs, tasc, self.solution) 
         return result
     
     def connect(self):
@@ -138,7 +143,12 @@ class User:
             if data is None:
                 raise RuntimeError("Server closed the connection before sending all data.")
 
-            self.rp_dict = json.loads(data)
+            response = json.loads(data)
+
+            self.rp_dict = response["rp_dict"]
+            for bs, noise in self.noise_dict.items():
+                self.rp_dict[bs] -= noise
             self.connect()
             self.x, self.y, self.fallback, self.trilateration_bs, self.case = self.get_position()
+                
             return self.x, self.y, self.fallback, self.trilateration_bs, self.case

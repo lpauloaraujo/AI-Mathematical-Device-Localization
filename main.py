@@ -1,12 +1,12 @@
-import csv
-import math
+import os
 import threading
-import time
-from utils.jsonmap import jsonmap
 from rp_server import ReceivedPowerServer
 from models.okomura_hata import OkomuraHata
 from trilateration.geometry import distance_between_points
 from collections import defaultdict
+
+from utils.txtmap import save_ga_info
+from utils.visual import draw_circles
 
 HOST = "localhost"
 PORT = 9090
@@ -17,7 +17,7 @@ def build_user_from_bs_signals(base_stations, user):
 
     user_thread = threading.Thread(
         target=user.receive_signal,
-        args=(HOST, PORT, ready, 4)
+        args=(HOST, PORT, ready, 3)
     )
     user_thread.start()
 
@@ -41,12 +41,11 @@ def build_user_from_bs_signals(base_stations, user):
     return user
 
 
-def estimate_user_position(user, model, mean, std, times, trilateration_method, choice_method):
+def estimate_user_position(user, model, solution):
     user.model = model
-    user.trilateration_method = trilateration_method
-    user.choice_method = choice_method
+    user.solution = solution
 
-    rp_server = ReceivedPowerServer(model, mean, std, times)
+    rp_server = ReceivedPowerServer(model)
 
     rp_server_ready = threading.Event()
 
@@ -72,9 +71,9 @@ def estimate_user_position(user, model, mean, std, times, trilateration_method, 
     return (user.x, user.y, user.case)
 
 
-def get_user_estimate_position(user, base_stations, model, mean, std, times, trilateration_method, choice_method):
+def get_user_estimate_position(user, base_stations, model, solution):
     complete_user = build_user_from_bs_signals(base_stations, user)
-    user_estimate_position = estimate_user_position(complete_user, model, mean, std, times, trilateration_method, choice_method)
+    user_estimate_position = estimate_user_position(complete_user, model, solution)
 
 
     return (user_estimate_position, user.connected_bs if user.connected_bs else None)
@@ -82,93 +81,54 @@ def get_user_estimate_position(user, base_stations, model, mean, std, times, tri
 def format_float(x):
     return f"{x:.10f}" if x is not None else ""
 
-def main(mean, std, noise_times, trilateration_method, choice_method):
+def main(base_stations, users, mean, std, noise_times, solution, timestamp):
     model = OkomuraHata()
-    base_stations = jsonmap("bs", "data/generated_bs.json")
-    users = jsonmap("user", "data/generated_users.json")
-
-    table_path = "data/trilateration_results_table.csv"
-
     case_errors = defaultdict(list)
     null_cases = 0
+    a = 0
 
-    with open(table_path, mode="w", newline="") as file:
-        writer = csv.writer(file, delimiter=";")
+    ga_file = os.path.join(
+            "data",
+            "ga",
+            f"ga_info_{timestamp}_{mean}_{std}_{noise_times}.txt"
+        )
+    
+    for i, user in enumerate(users, start=1):
 
-        writer.writerow([
-            "lat real", "long real",
-            "server", "rssi",
-            "Neighbor 1", "rssi",
-            "Neighbor 2", "rssi",
-            "lat calc", "long calc",
-            "Erro (metros)", "fallback",
-            "Case"
-        ])
+        real_X, real_Y = user.x, user.y
 
-        for user in users:
+        estimated_position, connected_bs = get_user_estimate_position(
+            user, base_stations, model, solution
+        )
 
-            real_X, real_Y = user.x, user.y
+        est_X, est_Y, case = estimated_position
 
-            estimated_position, connected_bs = get_user_estimate_position(
-                user, base_stations, model, mean, std, noise_times, trilateration_method, choice_method
-            )
+        #if solution == 9:
+            #print(f"User {i}: Real Position: ({format_float(real_X)}, {format_float(real_Y)}), "
+            #      f"Estimated Position: ({format_float(est_X)}, {format_float(est_Y)}), "
+            #      f"Case: {case}")
 
-            est_X, est_Y, case = estimated_position
+        if solution == 4:
+            save_ga_info(ga_file, user, real_X, real_Y)
 
-            sorted_bs = sorted(
-                user.trilateration_bs,
-                key=lambda bs: user.rp_dict.get(bs.identifier, 0),
-                reverse=True
-            )
+        error_metros = (
+            distance_between_points(real_X, real_Y, est_X, est_Y)
+        )
 
-            error_metros = (
-                distance_between_points(real_X, real_Y, est_X, est_Y)
-                * 1000
-            )
+        if user.case is None:
+            null_cases += 1
+        else:
+            case_errors[str(user.case)].append(error_metros)
+        a += 1
 
-            writer.writerow([
-                real_X, real_Y,
-                sorted_bs[0].identifier, user.rp_dict.get(sorted_bs[0].identifier, 0),
-                sorted_bs[1].identifier, format_float(user.rp_dict.get(sorted_bs[1].identifier, 0)),
-                sorted_bs[2].identifier, format_float(user.rp_dict.get(sorted_bs[2].identifier, 0)),
-                format_float(est_X), format_float(est_Y),
-                error_metros, user.fallback, user.case
-            ])
-
-            # Acumula erros por caso
-            if user.case is None:
-                null_cases += 1
-                print(f"WARNING: usuário sem case. Erro = {error_metros:.2f} m")
-            else:
-                case_errors[str(user.case)].append(error_metros)
-
-    summary_path = "data/case_average_errors.csv"
-
-    with open(summary_path, mode="w", newline="") as file:
-        writer = csv.writer(file, delimiter=";")
-
-        writer.writerow([
-            "Caso",
-            "Erro Médio (m)",
-            "Quantidade de Amostras"
-        ])
-
-        for case in sorted(case_errors.keys(), key=int):
-            media = sum(case_errors[case]) / len(case_errors[case])
-
-            writer.writerow([
-                case,
-                round(media, 2),
-                len(case_errors[case])
-            ])
-
-    print(f"Resumo salvo em {summary_path}")
-    print(f"Usuários com case nulo: {null_cases}")
+        #ta_distance = [(bs.ta_distance) for bs in user.bs_dict.values()]
+        #bs_distance = {"bs" + bs.identifier + "_distance": bs.distance * 1000 for bs in user.bs_dict.values()}
+        #print("real_x:", real_X, "real_y:", real_Y, "est_x:", est_X, "est_y:", est_Y, "bs_distance:", bs_distance, "ta_distance:", ta_distance, "noise_dict:", user.noise_dict)
+        #print("Error (meters):", error_metros)
+        #draw_circles([bs.x for bs in user.bs_dict.values()], [bs.y for bs in user.bs_dict.values()], [bs.distance * 1000 for bs in user.bs_dict.values()], mean, std, user_x=real_X, user_y=real_Y, ta=False)
+        #draw_circles([bs.x for bs in user.bs_dict.values()], [bs.y for bs in user.bs_dict.values()], [bs.ta_distance * 1000 for bs in user.bs_dict.values()], mean, std, user_x=real_X, user_y=real_Y, ta=True)
 
     return case_errors
 
 if __name__ == "__main__":
-    main(0, 6, 5, 0, 0)
-
-#fazer tabela mostrando em médio o erro para cada valor de desvio padrão
-#fazer vários testes com diferentes valores de desvio padrão e comparar os resultados 
+    main(0, 6, 10, 0, 4)

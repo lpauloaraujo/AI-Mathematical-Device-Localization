@@ -1,137 +1,184 @@
 import sys
 import os
-import csv
 import json
 import random
-import math
+from datetime import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from domain.base_station import BaseStation
 from domain.user import User
 
-def generate_bs(csv_path):
-    bs_list = []
-    id_bs = 1
-    with open(csv_path, 'r') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            bs = BaseStation(
-                identifier=str(id_bs),
-                x=float(row['Longitude']),
-                y=float(row['Latitude']),
-                height=float(row['AlturaAntena']),
-                gain=float(row['GanhoAntena']),
-                frequency=900,
-                power=40
+AREA_WIDTH = 1000 
+AREA_HEIGHT = 1000  
+
+MIN_DISTANCE = 300
+
+def noise(mean=0, stddev=6, times=10, fixed_value=None):
+    if fixed_value:
+        return stddev
+    total_noise = 0
+    for _ in range(times):
+        total_noise += random.gauss(mean, stddev)
+    if times != 0:
+        return total_noise/times
+    else:
+        return 0
+        
+def generate_bs(num_bs=3, users=None):
+    if users is None:
+        users = []
+    bss = []
+    while len(bss) < num_bs:
+        x = random.randint(0, AREA_WIDTH)
+        y = random.randint(0, AREA_HEIGHT)
+
+        if all(((x - bs.x)**2 + (y - bs.y)**2)**0.5 >= MIN_DISTANCE for bs in bss):
+            if any(x == user.x and y == user.y for user in users):
+                continue
+            bss.append(
+                BaseStation(
+                    identifier=str(len(bss) + 1),
+                    x=x,
+                    y=y,
+                    height=30,
+                    gain=15,
+                    frequency=900,
+                    power=20
+                )
             )
-            bs_list.append(bs)
-            id_bs += 1
-    return bs_list
+    return bss
 
-def generate_user_point(lat, lon, max_distance=300):
-
-    distance = random.uniform(0, max_distance)
-    angle = random.uniform(0, 2 * math.pi)
-
-    dx = distance * math.cos(angle)
-    dy = distance * math.sin(angle)
-
-    delta_lat = dy / 111320
-    delta_lon = dx / (111320 * math.cos(math.radians(lat)))
-
-    return lon + delta_lon, lat + delta_lat
-
-def generate_points_from_json(json_path, points_per_bs=100):
-    with open(json_path, "r") as f:
-        stations = json.load(f)
-
+def generate_users(num_users=100000):
     users = []
 
-    for bs in stations:
-        lat = bs["y"]
-        lon = bs["x"]
+    for _ in range(num_users):
 
-        for _ in range(points_per_bs):
-            user_lon, user_lat = generate_user_point(lat, lon)
+        x = random.randint(0, AREA_WIDTH)
+        y = random.randint(0, AREA_HEIGHT)
 
-            users.append(User(
-                x=user_lon,
-                y=user_lat,
-                height=1.5,
-                gain=0,
-            ))
+        user = User(
+            x=x,
+            y=y,
+            height=1.5,
+            gain=0,
+        )
+
+        users.append(user)
 
     return users
 
-def generate_users_json(csv_path, output_path="data/users_generation_result.json",
-                        height=1.5, gain=0):
-    users = []
-
-    with open(csv_path, 'r') as f:
-        reader = csv.DictReader(f)
-
-        for row in reader:
-            try:
-                lat = float(row["lat real"])
-                lon = float(row["long real"])
-            except (ValueError, KeyError):
-                continue 
-
-            user = {
-                "x": lat,
-                "y": lon,
-                "height": height,
-                "gain": gain
-            }
-
-            users.append(user)
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-    with open(output_path, 'w') as f:
-        json.dump(users, f, indent=4)
-
-    print(f"{len(users)} usuários gerados em {output_path}")
-
-def save_json(obj_list, file_path):
-    data = [obj.to_dict() for obj in obj_list]
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-
-estacoes = generate_bs('data/estacoes_trilateracao.csv')
-users = generate_points_from_json('data/generated_bs.json', points_per_bs=100)
-print(len(users))
-#generate_users_json('data/trilateration_table.csv', output_path='data/generated_users.json')
-
-save_json(estacoes, 'data/generated_bs.json')
-save_json(users, 'data/generated_users.json')
-
-table = "data/trilateration_table.csv"
-
-linha1 = [
-    "lat real", "long real", "server", "rssi", 
-    "Neighbor 1", "rssi", 
-    "Neighbor 2", "rssi", 
-    "lat calc", "long calc", "Erro (%)", "fallback"
-]
-
-with open(table, mode="w", newline="", encoding="utf-8") as f:
-    writer = csv.writer(f)  
-    
-    writer.writerow(linha1)
+def apply_noise(users, mean, stddev, times, fixed_value=False, same_for_all_bs=False):
 
     for user in users:
-        linha = [
-            user.y,     
-            user.x,       
-            "", "",       
-            "", "",       
-            "", "",       
-            "", "",        
-            "", ""       
-        ]
 
-        writer.writerow(linha)
+        if same_for_all_bs:
+            noise_value = noise(mean, stddev, times, fixed_value)
+            user.noise_dict = {
+                str(identifier): noise_value
+                for identifier in range(1, 4)
+            }
+        else:
 
-print("CSV criado com sucesso!")
+            user.noise_dict = {
+                str(identifier): noise(mean, stddev, times, fixed_value)
+                for identifier in range(1, 4)
+            }
+
+    return users
+
+def save_bs_json(bss, filename='data/generated_bs.json'):
+    with open(filename, 'w') as f:
+        json.dump([bs.to_dict() for bs in bss], f, indent=4)
+
+def save_users_json(users, filename='data/generated_users.json'):
+    with open(filename, 'w') as f:
+        json.dump([user.to_dict() for user in users], f, indent=4)
+
+def save_bs_txt(bss, folder):
+    with open(os.path.join(folder, "base_stations.txt"), "w") as f:
+        for bs in bss:
+            f.write(
+                f"BS {bs.identifier}: "
+                f"x={bs.x}, y={bs.y}\n"
+            )
+
+def save_users_txt(users, folder):
+    with open(os.path.join(folder, "users.txt"), "w") as f:
+        for i, user in enumerate(users, start=1):
+
+            noise_info = ", ".join(
+                f"noise_bs{bs_id}={noise}"
+                for bs_id, noise in sorted(user.noise_dict.items(), key=lambda x: int(x[0]))
+            )
+
+            f.write(
+                f"USER {i}: "
+                f"x={user.x}, y={user.y}, {noise_info}\n"
+            )
+
+def append_scenario_bs_txt(bss, experiment_folder, scenario):
+    filename = os.path.join(experiment_folder, "base_stations.txt")
+
+    with open(filename, "a") as f:
+        line = f"scenario_{scenario:03d}: "
+
+        line += ", ".join(
+            f"bs{bs.identifier}_x={bs.x}, bs{bs.identifier}_y={bs.y}"
+            for bs in sorted(bss, key=lambda bs: int(bs.identifier))
+        )
+
+        f.write(line + "\n")
+
+def save_info_txt(bss, users, timestamp=None):
+    os.makedirs("data/info", exist_ok=True)
+
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H_%M_%S")
+    filename = f"data/info/info_{timestamp}.txt"
+
+    with open(filename, "w") as f:
+        f.write("=== BASE STATIONS ===\n")
+
+        for bs in bss:
+            f.write(
+                f"BS {bs.identifier}: "
+                f"x={bs.x}, y={bs.y}\n"
+            )
+
+        f.write("\n=== USERS ===\n")
+
+        for i, user in enumerate(users, start=1):
+            f.write(
+                f"USER {i}: "
+                f"x={user.x}, y={user.y}\n"
+            )
+
+    print(f"Informações salvas em {filename}")
+
+def generate_experiment(num_scenarios=30, num_users=10000, mean=0, stddev=6, noise_times=10):
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H_%M_%S_%f")
+
+    experiment_folder = os.path.join(
+        "data",
+        "info",
+        f"experiment_{timestamp}"
+    )
+
+    os.makedirs(experiment_folder, exist_ok=True)
+
+    users = generate_users(num_users)
+
+    save_users_txt(users, experiment_folder)
+
+    for scenario in range(1, num_scenarios + 1):
+
+        bss = generate_bs(num_bs=3, users=users)
+
+        append_scenario_bs_txt(
+            bss,
+            experiment_folder,
+            scenario
+        )
+
+    return timestamp

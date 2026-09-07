@@ -36,7 +36,7 @@ def radical_center(bs_list):
 
     for bs in bs_list[:3]:
 
-        x_km, y_km = trilateration.geometry.to_km_coords(bs, ref_lat)
+        x_km, y_km = trilateration.geometry.to_km_coords(bs)
 
         bs_km.append(
             (x_km, y_km, bs.distance)
@@ -66,6 +66,4 @@ def radical_center(bs_list):
 
     x, y = intersection
 
-    lon, lat = trilateration.geometry.km_to_latlon(x, y, ref_lat)
-
-    return (lon, lat)
+    return (x, y)

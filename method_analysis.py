@@ -1,73 +1,261 @@
 import csv
+from collections import defaultdict
+from data.generator import apply_noise, generate_experiment
 from main import main
+import copy
+
+from run_experiment import run_experiment
+
+
+TIMES = 1
+
+NOISE_CONFIGS = [
+    (0, 2),
+    (0, 4),
+    (0, 6),
+    (0, 8),
+    (0, 10),
+    (2, 2),
+    (2, 4),
+    (2, 6),
+    (2, 8),
+    (2, 10),
+    (4, 2),
+    (4, 4),
+    (4, 6),
+    (4, 8),
+    (4, 10),
+    (6, 2),
+    (6, 4),
+    (6, 6),
+    (6, 8),
+    (6, 10),
+    (8, 2),
+    (8, 4),
+    (8, 6),
+    (8, 8),
+    (8, 10),
+    (10, 2),
+    (10, 4),
+    (10, 6),
+    (10, 8),
+    (10, 10)
+]
+
+SOLUTIONS = [1, 2, 3, 4]
+
 
 def generate_comparison_table():
 
-    trilateration_methods = [0, 1]
+    timestamp = generate_experiment(
+        num_scenarios=30,
+        num_users=500,
+    )
 
-    choice_methods = [
-        0,
-        1,
-        2,
-        3,
-        4
-    ]
+    distribution_filename = (
+        f"data/dados/cases_distribution_{timestamp}.csv"
+    )
+
+    combined_filename = (
+        f"data/dados/dados_completo_{timestamp}.csv"
+    )
 
     with open(
-        "data/method_comparison.csv",
+        distribution_filename,
         "w",
         newline=""
-    ) as file:
+    ) as distribution_file, \
+         open(
+             combined_filename,
+             "w",
+             newline=""
+         ) as combined_file:
 
-        writer = csv.writer(
-            file,
+        distribution_writer = csv.writer(
+            distribution_file,
             delimiter=";"
         )
 
-        writer.writerow([
-            "Trilateration",
-            "Choice",
+        combined_writer = csv.writer(
+            combined_file,
+            delimiter=";"
+        )
+
+        distribution_writer.writerow([
+            "Mean",
+            "Stddev",
+            "Solution",
+            "Case",
+            "Samples",
+            "Percentage"
+        ])
+
+        combined_writer.writerow([
+            "Mean",
+            "Stddev",
+            "Solution",
             "Case",
             "Average Error",
             "Samples"
         ])
 
-        for tril_method in trilateration_methods:
+        for mean, stddev in NOISE_CONFIGS:
 
-            for choice_method in choice_methods:
+            filename = (
+                f"data/dados/"
+                f"dados_{timestamp}_{mean}_{stddev}.txt"
+            )
 
-                print(
-                    f"Testing T={tril_method}, "
-                    f"C={choice_method}"
+            print(f"\n{'=' * 70}")
+            print(f"MEAN = {mean} | STDDEV = {stddev}")
+            print(f"{'=' * 70}")
+
+            with open(
+                filename,
+                "w",
+                newline=""
+            ) as results_file:
+
+                writer = csv.writer(
+                    results_file,
+                    delimiter=";"
                 )
 
-                case_errors = main(
-                    0,
-                    6,
-                    5,
-                    tril_method,
-                    choice_method
-                )
+                writer.writerow([
+                    "Solution",
+                    "Case",
+                    "Average Error",
+                    "Samples"
+                ])
 
-                for case in sorted(
-                    case_errors.keys(),
-                    key=int
-                ):
+                all_solution_errors = {
+                    solution: defaultdict(list)
+                    for solution in SOLUTIONS
+                }
 
-                    errors = case_errors[case]
+                for scenario, base_stations, users in run_experiment(timestamp):
 
-                    avg_error = (
-                        sum(errors) /
-                        len(errors)
+                    print(
+                        f"\nScenario {scenario} "
+                        f"| mean={mean}, stddev={stddev}"
                     )
 
-                    writer.writerow([
-                        tril_method,
-                        choice_method,
-                        case,
-                        round(avg_error, 2),
+                    users_with_noise = apply_noise(
+                        copy.deepcopy(users),
+                        mean,
+                        stddev,
+                        TIMES,
+                        fixed_value=False,
+                        same_for_all_bs=False
+                    )
+
+                    for solution in SOLUTIONS:
+
+                        print(
+                            f"    Testing solution={solution}"
+                        )
+
+                        solution_users = copy.deepcopy(
+                            users_with_noise
+                        )
+
+                        case_errors = main(
+                            base_stations,
+                            solution_users,
+                            mean,
+                            stddev,
+                            TIMES,
+                            solution,
+                            timestamp
+                        )
+
+                        for case, errors in case_errors.items():
+
+                            all_solution_errors[
+                                solution
+                            ][case].extend(errors)
+
+                for solution in SOLUTIONS:
+
+                    print(
+                        f"\n{'-' * 60}"
+                    )
+
+                    print(
+                        f"RESULTADOS DA SOLUÇÃO {solution}"
+                    )
+
+                    print(
+                        f"{'-' * 60}"
+                    )
+
+                    solution_results = (
+                        all_solution_errors[solution]
+                    )
+
+                    total_samples = sum(
                         len(errors)
-                    ])
+                        for errors
+                        in solution_results.values()
+                    )
+
+                    print(
+                        f"Total samples: {total_samples}"
+                    )
+
+                    for case in sorted(
+                        solution_results.keys(),
+                        key=int
+                    ):
+
+                        errors = solution_results[case]
+
+                        if not errors:
+                            continue
+
+                        samples = len(errors)
+
+                        avg_error = (
+                            sum(errors) / samples
+                        )
+
+                        writer.writerow([
+                            solution,
+                            case,
+                            round(avg_error, 2),
+                            samples
+                        ])
+
+                        combined_writer.writerow([
+                            mean,
+                            stddev,
+                            solution,
+                            case,
+                            round(avg_error, 2),
+                            samples
+                        ])
+
+                        percentage = (
+                            samples / total_samples * 100
+                            if total_samples > 0
+                            else 0
+                        )
+
+                        distribution_writer.writerow([
+                            mean,
+                            stddev,
+                            solution,
+                            case,
+                            samples,
+                            round(percentage, 2)
+                        ])
+
+                        print(
+                            f"Case {case}: "
+                            f"samples={samples}, "
+                            f"avg_error={avg_error:.2f}"
+                        )
+
 
 if __name__ == "__main__":
     generate_comparison_table()

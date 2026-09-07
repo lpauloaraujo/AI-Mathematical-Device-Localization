@@ -6,11 +6,8 @@ from domain.base_station import BaseStation
 
 class ReceivedPowerServer:
 
-    def __init__(self, model, noisemean=0, noisestddev=6, noise_times=1):  
+    def __init__(self, model):  
         self.model = model
-        self.noisemean = noisemean
-        self.noisestddev = noisestddev
-        self.noise_times = noise_times
 
     def recvall(self, conn, n):
         data = b''
@@ -20,12 +17,6 @@ class ReceivedPowerServer:
                 return None
             data += packet
         return data
-    
-    def noise(self, mean=0, stddev=6, times=1):
-        total_noise = 0
-        for _ in range(times):
-            total_noise += random.gauss(mean, stddev)
-        return total_noise/times
 
     def start(self, host, port, ready_event=None):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -64,11 +55,27 @@ class ReceivedPowerServer:
                         for bs_data in user_data["bs_dict"].values()
                     }
                     
-                    rp_dict = {
-                        bs.identifier: self.model.received_power(bs, user, True) + self.noise(self.noisemean, self.noisestddev, self.noise_times)
-                        for bs in user.bs_dict.values()
+                    rp_dict = {}
+
+                    for bs in user.bs_dict.values():
+
+                        rp = self.model.received_power(bs, user, True)
+
+                        rp_dict[bs.identifier] = rp
+
+                    response_data = {
+                        "x": user.x,
+                        "y": user.y,
+                        "base_stations": {
+                            bs.identifier: {
+                                "x": bs.x,
+                                "y": bs.y
+                            }
+                            for bs in user.bs_dict.values()
+                        },
+                        "rp_dict": rp_dict,
                     }
 
-                    response = json.dumps(rp_dict).encode("utf-8")
+                    response = json.dumps(response_data).encode("utf-8")
                     conn.sendall(len(response).to_bytes(4, "big"))
                     conn.sendall(response)
